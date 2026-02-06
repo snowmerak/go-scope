@@ -7,6 +7,8 @@ import (
 	"io"
 )
 
+type Void struct{}
+
 func Catch[I, O any](fn func(context.Context, I) (O, error)) func(context.Context, I) (O, error) {
 	return func(ctx context.Context, input I) (output O, err error) {
 		defer func() {
@@ -23,7 +25,7 @@ func Catch[I, O any](fn func(context.Context, I) (O, error)) func(context.Contex
 	}
 }
 
-func With[I, O any](fn func(context.Context, func(io.Closer), I) (O, error)) func(context.Context, I) (O, error) {
+func With[I, O any](fn func(ctx context.Context, capture func(io.Closer), input I) (O, error)) func(context.Context, I) (O, error) {
 	return func(ctx context.Context, input I) (output O, err error) {
 		errs := make([]error, 0, 4)
 
