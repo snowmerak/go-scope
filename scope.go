@@ -11,12 +11,7 @@ func Catch[I, O any](fn func(context.Context, I) (O, error)) func(context.Contex
 	return func(ctx context.Context, input I) (output O, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				var ok bool
-				output, ok = r.(O)
-				if !ok {
-					err = r.(error)
-				}
-				err = fmt.Errorf("panic caught: %+v", err)
+				err = fmt.Errorf("panic caught: %+v", r)
 			}
 		}()
 
