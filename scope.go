@@ -3,6 +3,7 @@ package scope
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -15,6 +16,7 @@ func Catch[I, O any](fn func(context.Context, I) (O, error)) func(context.Contex
 				if !ok {
 					err = r.(error)
 				}
+				err = fmt.Errorf("panic caught: %+v", err)
 			}
 		}()
 
@@ -23,14 +25,14 @@ func Catch[I, O any](fn func(context.Context, I) (O, error)) func(context.Contex
 }
 
 func With[I, O any](fn func(context.Context, func(io.Closer), I) (O, error)) func(context.Context, I) (O, error) {
-	errs := make([]error, 0, 4)
-	capture := func(closer io.Closer) {
-		if err := closer.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
 	return func(ctx context.Context, input I) (O, error) {
+		errs := make([]error, 0, 4)
+		capture := func(closer io.Closer) {
+			if err := closer.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
 		output, err := fn(ctx, capture, input)
 		switch err {
 		case nil:
