@@ -58,3 +58,28 @@ func With[I, O any](fn func(ctx context.Context, capture func(io.Closer), input 
 		return output, errors.Join(errs...)
 	}
 }
+
+func Wrap[S, I, O any](fn func(ctx context.Context, check func(error) bool, input I, session *S) (O, error), catcher func(s *S, err error)) func(context.Context, I, *S) (O, error) {
+	return func(ctx context.Context, input I, session *S) (output O, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				if e, ok := r.(error); ok {
+					err = fmt.Errorf("panic caught: %w", e)
+				} else {
+					err = fmt.Errorf("panic caught: %+v", r)
+				}
+				output = *new(O) // zero value
+			}
+		}()
+
+		check := func(e error) bool {
+			if e != nil {
+				catcher(session, e)
+				return true
+			}
+			return false
+		}
+
+		return fn(ctx, check, input, session)
+	}
+}
