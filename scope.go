@@ -11,7 +11,11 @@ func Catch[I, O any](fn func(context.Context, I) (O, error)) func(context.Contex
 	return func(ctx context.Context, input I) (output O, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("panic caught: %+v", r)
+				if e, ok := r.(error); ok {
+					err = fmt.Errorf("panic caught: %w", e)
+				} else {
+					err = fmt.Errorf("panic caught: %+v", r)
+				}
 			}
 		}()
 
@@ -32,6 +36,7 @@ func With[I, O any](fn func(context.Context, func(io.Closer), I) (O, error)) fun
 		if err != nil {
 			errs = append(errs, err)
 		}
+
 		return output, errors.Join(errs...)
 	}
 }
