@@ -68,7 +68,7 @@ func main() {
         if err != nil {
             return 0, err
         }
-        // Use capture(f) instead of manual defer f.Close()
+        // Use defer capture(f) instead of manual defer f.Close()
         defer capture(f)
 
         info, err := f.Stat()
