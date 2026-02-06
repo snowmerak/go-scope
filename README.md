@@ -83,6 +83,50 @@ func main() {
 }
 ```
 
+### 3. Wrap: Session-based Error Handling
+
+`Wrap` is ideal for operations that require a session (like a database transaction) where you want to centralize error side-effects (like rolling back or logging).
+
+```go
+package main
+
+import (
+    "context"
+    "database/sql"
+    "fmt"
+    "github.com/snowmerak/go-scope"
+)
+
+func main() {
+    // Define a function that uses a session (e.g., *sql.Tx)
+    process := scope.Wrap(func(ctx context.Context, check func(error) bool, id int, tx *sql.Tx) (string, error) {
+        var name string
+        err := tx.QueryRowContext(ctx, "SELECT name FROM users WHERE id = ?", id).Scan(&name)
+        
+        // Use check(err) to trigger the catcher and return early
+        if check(err) {
+            return "", err
+        }
+        
+        return name, nil
+    }, func(tx *sql.Tx, err error) {
+        // Catcher: centralized error cleanup
+        fmt.Printf("Error occurred: %v. Rolling back...\n", err)
+        tx.Rollback()
+    })
+
+    // Prepare session
+    db, _ := sql.Open("mysql", "...")
+    tx, _ := db.Begin()
+
+    // Pass the session to the wrapped function
+    name, err := process(context.Background(), 1, tx)
+    if err == nil {
+        tx.Commit()
+    }
+}
+```
+
 ## License
 
 Refer to the [LICENSE](LICENSE) file for details.

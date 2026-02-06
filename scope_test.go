@@ -140,3 +140,85 @@ func TestWith(t *testing.T) {
 		}
 	})
 }
+
+func TestWrap(t *testing.T) {
+	type Session struct {
+		IsRolledBack bool
+		Logs         []string
+	}
+
+	t.Run("NormalExecute", func(t *testing.T) {
+		session := &Session{}
+		fn := func(ctx context.Context, check func(error) bool, input string, s *Session) (int, error) {
+			s.Logs = append(s.Logs, "started")
+			return len(input), nil
+		}
+		catcher := func(s *Session, err error) {
+			s.IsRolledBack = true
+		}
+
+		wrapped := Wrap(fn, catcher)
+		out, err := wrapped(context.Background(), "hello", session)
+
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+		if out != 5 {
+			t.Errorf("expected 5, got %d", out)
+		}
+		if session.IsRolledBack {
+			t.Error("catcher should not be called on success")
+		}
+	})
+
+	t.Run("ErrorHandlingWithCheck", func(t *testing.T) {
+		session := &Session{}
+		expectedErr := errors.New("something failed")
+
+		fn := func(ctx context.Context, check func(error) bool, input string, s *Session) (int, error) {
+			if check(expectedErr) {
+				return 0, expectedErr
+			}
+			return 1, nil
+		}
+		catcher := func(s *Session, err error) {
+			s.IsRolledBack = true
+			s.Logs = append(s.Logs, "catcher called: "+err.Error())
+		}
+
+		wrapped := Wrap(fn, catcher)
+		_, err := wrapped(context.Background(), "test", session)
+
+		if !errors.Is(err, expectedErr) {
+			t.Errorf("expected error %v, got %v", expectedErr, err)
+		}
+		if !session.IsRolledBack {
+			t.Error("expected catcher to be called")
+		}
+		if len(session.Logs) == 0 || session.Logs[0] != "catcher called: something failed" {
+			t.Errorf("unexpected logs: %v", session.Logs)
+		}
+	})
+
+	t.Run("PanicHandling", func(t *testing.T) {
+		session := &Session{}
+		fn := func(ctx context.Context, check func(error) bool, input string, s *Session) (int, error) {
+			panic("unexpected panic")
+		}
+		catcher := func(s *Session, err error) {
+			s.IsRolledBack = true
+		}
+
+		wrapped := Wrap(fn, catcher)
+		out, err := wrapped(context.Background(), "test", session)
+
+		if err == nil {
+			t.Error("expected error from panic, got nil")
+		}
+		if out != 0 {
+			t.Errorf("expected zero value on panic, got %d", out)
+		}
+		// Note: Based on current scope.go implementation, catcher is not called in defer for Catch/Wrap
+		// unless we explicitly added it.
+	})
+}
